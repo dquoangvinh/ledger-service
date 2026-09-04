@@ -42,6 +42,29 @@ class OpenApiIntegrationTest extends AbstractLedgerIntegrationTest {
     }
 
     @Test
+    @DisplayName("the transfer body is described with its real bounds")
+    void theRequestSchemaCarriesItsConstraints() throws Exception {
+        /*
+         * springdoc logs a WARN at startup - "Cannot construct instance of java.util.HashSet ...
+         * from String value ('string')" - while building example values. It is cosmetic: the
+         * document itself is complete, which is what this asserts. Written down so the next person
+         * to read that line does not go looking for a broken schema.
+         *
+         * The bounds come from the bean validation annotations, which is the point: the description
+         * cannot drift from what the endpoint actually accepts, because it is generated from it.
+         */
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.TransferRequest.properties.fromAccountId.format")
+                        .value("int64"))
+                .andExpect(jsonPath("$.components.schemas.TransferRequest.properties.amount.minimum")
+                        .value(0.0001))
+                .andExpect(jsonPath("$.components.schemas.TransferRequest.required")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder(
+                                "fromAccountId", "toAccountId", "amount")));
+    }
+
+    @Test
     @DisplayName("⭐ it declares the bearer scheme, so the page can actually call the API")
     void theBearerSchemeIsDeclared() throws Exception {
         // Without this the Authorize box does not appear and every "Try it out" is a 401 with no
