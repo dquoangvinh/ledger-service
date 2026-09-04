@@ -1,0 +1,106 @@
+# The ledger and what it needs to be usable: a database of its own, and something
+# to issue the tokens it will not work without.
+#
+# auth-service is not part of this repository. It is built from the e-commerce
+# project this ledger was extracted from, and its image has to be published
+# before this file can stand anything up - see README, "Deploying the demo".
+# Override AUTH_SERVICE_IMAGE to run against a locally built one.
+
+name: ledger-demo
+
+services:
+
+  ledger-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ledgerdb
+      POSTGRES_USER: ${LEDGER_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${LEDGER_DB_PASSWORD:?set LEDGER_DB_PASSWORD}
+    # PostgreSQL 18 moved PGDATA: mounting /var/lib/postgresql/data instead of the
+    # parent leaves the real data directory inside the container, and every
+    # `compose down` silently takes the database with it.
+    volumes:
+      - ledger-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LEDGER_DB_USER:-postgres} -d ledgerdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  auth-db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: authdb
+      POSTGRES_USER: ${AUTH_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?set AUTH_DB_PASSWORD}
+    volumes:
+      - auth-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-postgres} -d authdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Only the token deny list uses this. auth-service catches the connection
+  # failure and carries on, so losing Redis costs logout - a revoked token stays
+  # usable until it expires on its own - and nothing else.
+  redis:
+    image: redis:8-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  auth-service:
+    image: ${AUTH_SERVICE_IMAGE:-ghcr.io/dquoangvinh/auth-service:latest}
+    environment:
+      POSTGRES_HOST: auth-db
+      POSTGRES_DB: authdb
+      POSTGRES_USER: ${AUTH_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?set AUTH_DB_PASSWORD}
+      REDIS_HOST: redis
+      AUTH_JWT_ISSUER: ecommerce-auth-service
+      # A throwaway RSA pair generated at startup, so no private key has to live
+      # in this file or in the deployment's environment. The cost is real and
+      # bounded: every restart invalidates every token that was issued, and a
+      # second replica would reject the first one's. Fine for one demo instance,
+      # wrong for anything else - set AUTH_JWT_PRIVATE_KEY/PUBLIC_KEY instead.
+      AUTH_JWT_ALLOW_EPHEMERAL_KEY: "true"
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ledger-service:
+    image: ${LEDGER_SERVICE_IMAGE:-ghcr.io/dquoangvinh/ledger-service:latest}
+    environment:
+      DB_HOST: ledger-db
+      DB_NAME: ledgerdb
+      DB_USERNAME: ${LEDGER_DB_USER:-postgres}
+      DB_PASSWORD: ${LEDGER_DB_PASSWORD:?set LEDGER_DB_PASSWORD}
+      # Inside the network, by service name. The issuer is a plain string and is
+      # compared for equality, so it must match what auth-service stamps into the
+      # token exactly - it is not a URL and nothing dereferences it.
+      JWT_JWK_SET_URI: http://auth-service:8090/api/v1/auth/.well-known/jwks.json
+      JWT_ISSUER: ecommerce-auth-service
+    ports:
+      - "${LEDGER_PORT:-8091}:8091"
+    depends_on:
+      ledger-db:
+        condition: service_healthy
+      # started, not healthy: the ledger fetches the JWKS lazily, on the first
+      # token it has to verify, so it does not need auth-service up to boot. This
+      # keeps a slow auth-service from holding the whole stack down.
+      auth-service:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  ledger-db-data:
+  auth-db-data:

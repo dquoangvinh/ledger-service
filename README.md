@@ -57,6 +57,47 @@ normal build.
 | Postings are immutable and every entry balances | `LedgerInvariantsIntegrationTest` |
 | Request validation refuses malformed transfers before they reach the ledger | `LedgerControllerValidationIntegrationTest` |
 
+## Deploying the demo
+
+`compose.yaml` brings up the ledger, a database for it, and the auth-service that issues its
+tokens — five containers in all.
+
+```bash
+LEDGER_DB_PASSWORD=... AUTH_DB_PASSWORD=... docker compose up -d
+```
+
+The passwords have no defaults on purpose: compose refuses to start without them rather than
+standing up a money service on `postgres/postgres`.
+
+**auth-service is the one prerequisite.** It lives in the e-commerce project this ledger was
+extracted from and its image is not published yet, so `compose.yaml` refers to
+`ghcr.io/<owner>/auth-service:latest` and will not find it until that happens. Building it needs the
+whole parent repository, because it depends on shared modules — unlike this service, it cannot be
+built from its own directory. Point `AUTH_SERVICE_IMAGE` at a locally built one to run the stack
+before then.
+
+Verified end to end against a real token rather than a test double — register through auth-service,
+take the returned `accessToken`, and post a transfer:
+
+```
+HTTP 201  {"success":true,"data":{"entryId":1,"status":"POSTED"}}
+WALLET-A = 999750.0000
+WALLET-B =    250.0000
+```
+
+Sending the identical request again with the same `Idempotency-Key` also returns 201, and the
+ledger still holds **one** journal entry: the repeat is recognised, not re-posted.
+
+Two things about that stack are deliberate and cost something:
+
+- **Ephemeral signing keys.** auth-service generates an RSA pair at startup, so no private key has to
+  live in the compose file or the deployment's environment. Every restart invalidates every token it
+  issued, and a second replica would reject the first one's. Correct for one demo instance and wrong
+  for anything else; set `AUTH_JWT_PRIVATE_KEY` / `AUTH_JWT_PUBLIC_KEY` for a real deployment.
+- **Redis is optional.** Only the token deny list uses it, and auth-service catches the connection
+  failure and carries on. Losing Redis costs logout — a revoked token stays usable until it expires
+  on its own — and nothing else.
+
 ## Two details worth knowing
 
 **Lock order is fixed in SQL, not in Java.** `LedgerAccountBalanceRepository` locks rows with
