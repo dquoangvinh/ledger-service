@@ -1,0 +1,10 @@
+# mvnw is a shell script and must arrive with LF endings wherever it is cloned.
+# Checked out with CRLF on a Linux runner it fails as
+# "/bin/sh^M: bad interpreter" - the executable bit is set, the file is there,
+# and it still will not run. Committed from Windows, this is the default outcome
+# without this line.
+/mvnw text eol=lf
+/mvnw.cmd text eol=crlf
+
+*.sh text eol=lf
+*.sql text eol=lf
