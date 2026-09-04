@@ -12,6 +12,8 @@ services:
 
   ledger-db:
     image: postgres:18-alpine
+    # Measured idle at 41 MiB; 256m is room to grow, not a guess at the minimum.
+    mem_limit: 256m
     environment:
       POSTGRES_DB: ledgerdb
       POSTGRES_USER: ${LEDGER_DB_USER:-postgres}
@@ -30,6 +32,8 @@ services:
 
   auth-db:
     image: postgres:18-alpine
+    # Measured idle at 56 MiB.
+    mem_limit: 256m
     environment:
       POSTGRES_DB: authdb
       POSTGRES_USER: ${AUTH_DB_USER:-postgres}
@@ -48,6 +52,7 @@ services:
   # usable until it expires on its own - and nothing else.
   redis:
     image: redis:8-alpine
+    mem_limit: 128m
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -57,6 +62,14 @@ services:
 
   auth-service:
     image: ${AUTH_SERVICE_IMAGE:-ghcr.io/dquoangvinh/auth-service:latest}
+    # 1g, not the 768m the ledger gets. Measured: at 768m this sits at 760 MiB -
+    # 99% - one collection away from being killed, because its image runs ZGC,
+    # whose native footprint is larger. At 1g it settles at 945 MiB and survives,
+    # OOMKilled=false, no restarts. The figure stays high either way: with
+    # MaxRAMPercentage the heap grows to fit whatever limit it is given, so a
+    # container like this always looks nearly full and that on its own is not a
+    # symptom.
+    mem_limit: 1g
     environment:
       POSTGRES_HOST: auth-db
       POSTGRES_DB: authdb
@@ -79,6 +92,12 @@ services:
 
   ledger-service:
     image: ${LEDGER_SERVICE_IMAGE:-ghcr.io/dquoangvinh/ledger-service:latest}
+    # Measured healthy in 18s at this limit, using 293 MiB of it. The JVM read
+    # the limit rather than the host: MaxHeapSize came out at 576 MB, exactly 75%
+    # of 768m. That is the whole reason these limits exist - without one, each JVM
+    # sizes its heap against the host's memory, so two of them on an 8 GB box
+    # would between them claim 12 GB and neither would survive the discovery.
+    mem_limit: 768m
     environment:
       DB_HOST: ledger-db
       DB_NAME: ledgerdb
