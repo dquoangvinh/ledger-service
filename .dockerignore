@@ -1,0 +1,12 @@
+# target/ alone is ~66 MB, and every byte of it would be uploaded to the daemon as
+# build context before a single instruction ran. The build produces its own.
+target/
+.git/
+.github/
+.idea/
+*.iml
+
+# The image builds from source; a jar sitting in the working tree must never be
+# what ships. Copying a prebuilt jar is how a three-month-old build reaches
+# production while the Dockerfile looks correct.
+*.jar
