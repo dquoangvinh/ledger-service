@@ -15,7 +15,27 @@ docker run -d --name ledger-db -e POSTGRES_DB=ledgerdb -e POSTGRES_PASSWORD=post
 ```
 
 Flyway creates the schema on first start. The API is on `:8091`, health on
-`/actuator/health`.
+`/actuator/health`, and the browsable description on
+[`/swagger-ui.html`](http://localhost:8091/swagger-ui.html) — that page is the fastest way to see
+what this service does.
+
+## Authentication
+
+Every endpoint except health and the API description needs a bearer token. Tokens come from the
+project's own auth-service, not from Keycloak:
+
+```
+JWT_JWK_SET_URI=http://localhost:8090/api/v1/auth/.well-known/jwks.json
+JWT_ISSUER=ecommerce-auth-service
+```
+
+Its issuer is a plain string rather than a URL and it publishes a JWKS and no discovery document,
+so `spring.security.oauth2.resourceserver.jwt.issuer-uri` cannot be used — that property resolves
+keys through OIDC discovery at `{issuer}/.well-known/openid-configuration`. The JWKS is named
+directly instead and the issuer is compared as a string.
+
+The acting user is read from the token's `sub`, never from the request body, so a caller cannot move
+money out of an account they do not own by naming it.
 
 ## Running the tests
 

@@ -64,6 +64,15 @@ public class SecurityConfig {
                         // accounts and entry counts, which is a description of the books to anyone
                         // who asks, and this service is meant to be reachable from the internet.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        /*
+                         * The API description, open. It says which endpoints exist and what shape
+                         * they take - which is what a reader of this service is here to find out,
+                         * and what any caller learns from one request anyway. It does not say what
+                         * is in the books: every endpoint behind it still needs a token, and the
+                         * ledger refuses to read an account the caller does not own.
+                         */
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**",
+                                "/swagger-ui.html", "/swagger-ui/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.decoder(jwtDecoder())))
                 .build();

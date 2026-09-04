@@ -25,6 +25,8 @@
     <properties>
         <java.version>25</java.version>
         <testcontainers.version>2.0.4</testcontainers.version>
+        <!-- 3.x targets Spring Boot 4; the parallel 2.x line targets Boot 3. -->
+        <springdoc.version>3.1.0</springdoc.version>
     </properties>
 
     <dependencyManagement>
@@ -56,6 +58,16 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+        <!--
+            Browsable API docs. The 3.x line is the one built against Spring Boot 4 - springdoc
+            maintains 2.x for Boot 3 and 3.x for Boot 4 in parallel, releasing both on the same day,
+            so the higher number is not simply "newer", it is a different target.
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
         <!-- LedgerMetrics publishes gauges through Micrometer. -->
         <dependency>
