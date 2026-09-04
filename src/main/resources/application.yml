@@ -13,14 +13,17 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8180/realms/ecommerce}
-
 server:
   port: ${SERVER_PORT:8091}
+
+app:
+  auth:
+    # The token signer is this project's auth-service, not Keycloak. It publishes a JWKS and no
+    # discovery document, and its issuer is a plain string rather than a URL - so the JWKS is named
+    # directly here. See SecurityConfig for why spring.security.oauth2.resourceserver.jwt.issuer-uri
+    # cannot be used for this issuer.
+    jwk-set-uri: ${JWT_JWK_SET_URI:http://localhost:8090/api/v1/auth/.well-known/jwks.json}
+    issuer: ${JWT_ISSUER:ecommerce-auth-service}
 
 management:
   endpoints:

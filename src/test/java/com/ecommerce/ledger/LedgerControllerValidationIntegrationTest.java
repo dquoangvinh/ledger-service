@@ -1,6 +1,5 @@
 package com.ecommerce.ledger;
 
-import com.ecommerce.ledger.config.TestSecurityConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +36,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * {@code @EnableJpaRepositories} explicitly, which a {@code @WebMvcTest} slice cannot satisfy.
  */
 @AutoConfigureMockMvc
-@Import(TestSecurityConfig.class)
 class LedgerControllerValidationIntegrationTest extends AbstractLedgerIntegrationTest {
 
     private static final String VALID_BODY = """
